@@ -102,19 +102,62 @@
 
   function route() {
     const p = params();
-    if (p.has('cal')) return renderUserView(p.get('cal'));
+    if (p.has('cal')) { rememberLastCal(p.get('cal')); return renderUserView(p.get('cal')); }
     if (p.has('edit')) return renderEditorGate();
+    // Als PWA installiert startet die App immer auf start_url ('./') — der
+    // '?cal=<id>'-Teil des Einladungslinks fehlt dann. Deshalb den zuletzt
+    // geöffneten Kalender wiederherstellen, statt auf der Landing zu stranden.
+    const last = lastCal();
+    if (last) return openCalendar(last);
     return renderLanding();
+  }
+
+  /** Kalender öffnen und die Adresse mitziehen, damit Neuladen ihn behält. */
+  function openCalendar(calId) {
+    rememberLastCal(calId);
+    try { history.replaceState({}, '', 'index.html?cal=' + encodeURIComponent(calId)); } catch (_) { /* egal */ }
+    return renderUserView(calId);
+  }
+
+  /** Holt die Kalender-ID aus einem eingefügten Einladungslink — oder nimmt eine
+   *  direkt eingegebene ID. Toleriert Leerzeichen und Text um den Link herum. */
+  function extractCalId(raw) {
+    const s = String(raw || '').trim();
+    if (!s) return null;
+    const m = s.match(/[?&]cal=([A-Za-z0-9_-]+)/);
+    if (m) return m[1];
+    if (/^[A-Za-z0-9_-]{4,}$/.test(s)) return s;      // direkt eingegebene ID
+    return null;
   }
 
   function renderLanding() {
     setTopActions([]);
+    const inp = el('input', {
+      type: 'text', placeholder: 'https://…/Adventskalender/?cal=…',
+      autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false',
+    });
+    const err = el('div', { class: 'error' });
+    const open = () => {
+      const id = extractCalId(inp.value);
+      if (!id) {
+        err.textContent = 'Darin steckt keine Kalender-ID. Am einfachsten den kompletten Einladungslink einfügen.';
+        return;
+      }
+      err.textContent = '';
+      openCalendar(id);
+    };
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter') open(); });
+
     mount(el('div', { class: 'panel center' }, [
       el('h2', { text: '🎄 Adventskalender' }),
       el('p', { class: 'sub', text: 'Verschlüsselte Türchen voller Überraschungen.' }),
       el('div', { class: 'stack' }, [
         el('p', { class: 'hint', text: 'Du hast einen Einladungslink erhalten? Öffne ihn direkt — er enthält deinen Kalender. Das Passwort bekommst du separat.' }),
-        el('button', { class: 'btn secondary', onclick: () => location.href = 'index.html?edit' , text: 'Als Bearbeiter anmelden' }),
+        el('p', { class: 'hint', text: 'Die App vom Startbildschirm geöffnet und hier gelandet? Dann füge einmalig deinen Einladungslink ein — danach startet die App direkt im Kalender.' }),
+        el('label', { class: 'field' }, [el('span', { text: 'Einladungslink oder Kalender-ID' }), inp]),
+        el('button', { class: 'btn', text: '🎄 Kalender öffnen', onclick: open }),
+        err,
+        el('button', { class: 'btn secondary', onclick: () => location.href = 'index.html?edit', text: 'Als Bearbeiter anmelden' }),
       ]),
     ]));
   }
@@ -309,6 +352,13 @@
 
   function rememberKey(calId) { return 'ak_pw_' + calId; }
 
+  // Zuletzt geöffneter Kalender — damit die installierte PWA (die immer auf
+  // start_url startet, also ohne '?cal=<id>') wieder im Kalender landet.
+  const LAST_CAL_KEY = 'ak_last_cal';
+  function rememberLastCal(calId) { try { localStorage.setItem(LAST_CAL_KEY, calId); } catch (_) { /* Privatmodus */ } }
+  function lastCal() { try { return localStorage.getItem(LAST_CAL_KEY); } catch (_) { return null; } }
+  function forgetLastCal() { try { localStorage.removeItem(LAST_CAL_KEY); } catch (_) { /* egal */ } }
+
   /** Passwort-Dialog (Editor & User). onOk(key) bei korrektem Passwort.
    *  Für die Nutzer-Ansicht (nicht Editor) kann das Passwort auf dem Gerät
    *  gemerkt werden → kein tägliches Neu-Eingeben. */
@@ -340,6 +390,12 @@
       cal.passwordHint ? el('p', { class: 'hint', text: 'Hinweis: ' + cal.passwordHint }) : null,
       opts.editor ? null : el('label', { class: 'field row' }, [remember, el('span', { text: ' Auf diesem Gerät angemeldet bleiben', style: 'margin:0;' })]),
       btn, err,
+      // Notausgang: sonst führt der gemerkte Kalender die installierte PWA
+      // immer wieder hierher, ohne Weg zur Startseite (anderer Link, falscher Kalender).
+      opts.editor ? null : el('button', {
+        class: 'btn secondary small', text: 'Anderen Kalender öffnen',
+        onclick: () => { forgetLastCal(); location.href = 'index.html'; },
+      }),
     ]);
     openModal(body);
     setTimeout(() => pw.focus(), 50);
@@ -642,7 +698,18 @@
     let cal;
     try {
       const doc = await db.collection('calendars').doc(calId).get();
-      if (!doc.exists) { mount(errorPanel('Dieser Kalender existiert nicht (mehr).')); return; }
+      if (!doc.exists) {
+        // Merker löschen, sonst startet die installierte PWA dauerhaft in diesen
+        // Fehler (gelöschter Kalender = Sackgasse ohne Weg zur Startseite).
+        forgetLastCal();
+        const panel = errorPanel('Dieser Kalender existiert nicht (mehr).');
+        panel.appendChild(el('button', {
+          class: 'btn secondary', text: 'Zur Startseite',
+          onclick: () => location.href = 'index.html',
+        }));
+        mount(panel);
+        return;
+      }
       cal = { id: calId, ...doc.data() };
     } catch (e) { mount(errorPanel('Kalender konnte nicht geladen werden.', e)); return; }
     state.cal = cal;
