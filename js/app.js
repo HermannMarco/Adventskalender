@@ -873,6 +873,15 @@
     } catch (_) { /* nicht unterstützt */ }
   }
 
+  /** Gegenstück: Drehen wieder freigeben, solange ein Türchen offen ist. Ohne das
+   *  bliebe die Android-PWA im Querformat und Hochkant-Inhalte wären winzig. */
+  function tryUnlockOrientation() {
+    try {
+      const o = screen.orientation;
+      if (o && typeof o.unlock === 'function') o.unlock();
+    } catch (_) { /* nicht unterstützt (u. a. iOS) */ }
+  }
+
   /** Rendert einen Inhalt in `wrap` und fängt Fehler lokal ab (CORS-Hinweis). */
   async function safeRenderItem(item, wrap) {
     try {
@@ -1008,20 +1017,33 @@
     overlay.appendChild(sd);
     document.body.appendChild(overlay);
 
-    // Zielbox (zentriert) festlegen
-    const vw = window.innerWidth, vh = window.innerHeight;
-    const targetW = Math.min(360, vw * 0.82, (vh * 0.82) * 3 / 4);
-    const targetH = targetW * 4 / 3;
-    const targetLeft = (vw - targetW) / 2, targetTop = (vh - targetH) / 2;
-    sd.style.width = targetW + 'px';
-    sd.style.height = targetH + 'px';
-    sd.style.left = targetLeft + 'px';
-    sd.style.top = targetTop + 'px';
+    /** Zielbox (zentriert) berechnen und setzen. Wird beim Drehen des Geräts
+     *  erneut aufgerufen: Hochkant-Fotos/Videos schaut man im Hochformat an,
+     *  sonst behielte die Tür die Pixelmaße des Querformats. */
+    const sizeDoor = () => {
+      const vw = window.innerWidth, vh = window.innerHeight;
+      const w = Math.min(420, vw * 0.9, (vh * 0.82) * 3 / 4);
+      const h = w * 4 / 3;
+      const left = (vw - w) / 2, top = (vh - h) / 2;
+      sd.style.width = w + 'px';
+      sd.style.height = h + 'px';
+      sd.style.left = left + 'px';
+      sd.style.top = top + 'px';
+      return { w: w, left: left, top: top };
+    };
+    const box = sizeDoor();
+
+    // Beim Drehen neu vermessen (und einen etwaigen FLIP-Transform verwerfen,
+    // der sich auf die alten Maße bezog).
+    const onViewportChange = () => { sizeDoor(); sd.style.transform = ''; };
+    window.addEventListener('resize', onViewportChange);
+    window.addEventListener('orientationchange', onViewportChange);
+    tryUnlockOrientation();   // Android: Drehen erlauben, solange das Türchen offen ist
 
     // FLIP: Startzustand = exakt über der angetippten Kachel
-    const r = srcEl ? srcEl.getBoundingClientRect() : { left: targetLeft, top: targetTop, width: targetW };
-    const scale = r.width / targetW;
-    if (!reduce) sd.style.transform = `translate(${r.left - targetLeft}px, ${r.top - targetTop}px) scale(${scale})`;
+    const r = srcEl ? srcEl.getBoundingClientRect() : { left: box.left, top: box.top, width: box.w };
+    const scale = r.width / box.w;
+    if (!reduce) sd.style.transform = `translate(${r.left - box.left}px, ${r.top - box.top}px) scale(${scale})`;
 
     // Inhalt parallel entschlüsseln
     const contentReady = renderDayContent(day, data, contentBox)
@@ -1041,6 +1063,9 @@
       overlay.classList.remove('dim');
       document.body.classList.remove('door-open');   // Schnee wieder fallen lassen
       document.removeEventListener('keydown', onKey);
+      window.removeEventListener('resize', onViewportChange);
+      window.removeEventListener('orientationchange', onViewportChange);
+      tryLockLandscape();                            // Bühne will wieder Querformat
       setTimeout(() => overlay.remove(), 420);
     };
     const onKey = e => { if (e.key === 'Escape') cleanup(); };
