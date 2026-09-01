@@ -212,6 +212,10 @@ body.stage-mode .calendar-stage {
 /* Drehen-Hinweis: standardmäßig aus; nur Nutzer-Ansicht + Touch + Hochformat */
 #rotateHint { display: none; }
 @media (orientation: portrait) and (max-width: 900px) and (pointer: coarse) {
+  /* Solange ein Türchen offen ist, ist Hochformat erlaubt: Hochkant-Fotos und
+     -Videos will man im Portrait ansehen. Der Hinweis kommt beim Schließen
+     zurück, denn die Bühne selbst braucht weiter das Querformat. */
+  body.stage-mode.door-open #rotateHint { display: none; }
   body.stage-mode #rotateHint {
     display: flex; position: fixed; inset: 0; z-index: 200;
     flex-direction: column; align-items: center; justify-content: center;
