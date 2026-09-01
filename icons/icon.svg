@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0f5136"/>
+      <stop offset="1" stop-color="#0b3d2e"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="96" fill="url(#bg)"/>
+  <!-- Schnee -->
+  <circle cx="120" cy="110" r="6" fill="#ffffff" opacity=".7"/>
+  <circle cx="400" cy="90" r="5" fill="#ffffff" opacity=".6"/>
+  <circle cx="330" cy="150" r="4" fill="#ffffff" opacity=".5"/>
+  <circle cx="90" cy="200" r="4" fill="#ffffff" opacity=".5"/>
+  <!-- Geschenk -->
+  <rect x="146" y="230" width="220" height="180" rx="18" fill="#c0392b"/>
+  <rect x="146" y="230" width="220" height="52" rx="18" fill="#e74c3c"/>
+  <rect x="240" y="230" width="32" height="180" fill="#f1c40f"/>
+  <!-- Schleife -->
+  <path d="M256 230c-30-46-96-40-96 2 0 26 52 24 96 4 44 20 96 22 96-4 0-42-66-48-96-2z" fill="#f1c40f"/>
+  <circle cx="256" cy="232" r="14" fill="#e67e22"/>
+  <!-- 24 -->
+  <text x="256" y="150" font-family="Georgia, serif" font-size="120" font-weight="700"
+        fill="#ffffff" text-anchor="middle">24</text>
+</svg>
