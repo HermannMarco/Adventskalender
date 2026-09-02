@@ -323,9 +323,47 @@
   function shareUrl(calId) {
     return location.origin + location.pathname.replace(/index\.html$/, '') + 'index.html?cal=' + calId;
   }
+  /** Fertige Einladungsnachricht mit Link + Installationsanleitung je Plattform.
+   *  Die Stolpersteine, die Empfänger sonst zuverlässig ausbremsen, sind bewusst
+   *  benannt: (a) der WhatsApp-Browser kann NICHT zum Home-Bildschirm hinzufügen,
+   *  (b) die installierte App startet auf start_url, kennt also den '?cal='-Teil
+   *  nicht → Link beim ersten Start einmal einfügen (siehe Landing-Eingabefeld). */
+  function invitationText(url) {
+    return [
+      '🎄 Dein Adventskalender ist da!',
+      '',
+      'Hier ist dein persönlicher Link:',
+      url,
+      '',
+      'Das Passwort bekommst du in einer zweiten Nachricht — der Link allein reicht nicht, ohne Passwort bleibt alles verschlüsselt.',
+      '',
+      'Tipp: Halte das Handy quer. 📱',
+      '',
+      '━━ Als App auf den Startbildschirm ━━',
+      '',
+      '📱 iPhone / iPad',
+      '1. Link oben antippen. Öffnet sich die Seite innerhalb von WhatsApp: unten rechts auf das Kompass-Symbol („in Safari öffnen") — nur in Safari geht Schritt 2.',
+      '2. Unten in der Mitte auf das Teilen-Symbol (Quadrat mit Pfeil nach oben).',
+      '3. In der Liste nach unten scrollen → „Zum Home-Bildschirm" → oben rechts „Hinzufügen".',
+      '4. Neues Symbol starten. Beim ersten Mal erscheint eine Startseite: dort den Link von oben einmal einfügen (in WhatsApp lange auf diese Nachricht tippen → Kopieren) → „Kalender öffnen" → Passwort eingeben.',
+      '   Ab dem nächsten Start geht es direkt in den Kalender.',
+      '',
+      '🤖 Android',
+      '1. Link oben antippen. Öffnet sich die Seite innerhalb von WhatsApp: oben rechts ⋮ → „Im Browser öffnen".',
+      '2. In Chrome erscheint unten meist „App installieren" — antippen und bestätigen. Falls nicht: oben rechts ⋮ → „App installieren" bzw. „Zum Startbildschirm hinzufügen".',
+      '   (Samsung Internet: ⋮ → „Seite hinzufügen zu" → „Startbildschirm")',
+      '3. Fertig. Passwort einmal eingeben, danach merkt sich die App es.',
+      '',
+      'Jedes Türchen lässt sich an seinem Tag im Dezember öffnen. Steckt ein Foto oder Video im Hochformat drin, kannst du bei geöffnetem Türchen einfach zurück ins Hochformat drehen. 🎁',
+    ].join('\n');
+  }
+
   function showShare(c) {
     const url = shareUrl(c.id);
     const inp = el('input', { type: 'text', value: url, readonly: 'readonly' });
+    const msg = invitationText(url);
+    const ta = el('textarea', { readonly: 'readonly', style: 'min-height:150px;' });
+    ta.value = msg;
     openModal(el('div', {}, [
       el('h2', { text: 'Kalender teilen' }),
       el('p', { class: 'sub', text: 'Diesen Link an den Empfänger senden — das Passwort bitte separat (z. B. persönlich).' }),
@@ -333,6 +371,16 @@
       el('div', { class: 'row' }, [
         el('button', { class: 'btn', text: 'Link kopieren', onclick: () => { inp.select(); navigator.clipboard?.writeText(url); toast('Link kopiert.'); } }),
       ]),
+      el('label', { class: 'field mt' }, [
+        el('span', { text: 'Einladungstext (Link + Anleitung „App aufs Handy")' }), ta,
+      ]),
+      el('div', { class: 'row' }, [
+        el('button', {
+          class: 'btn secondary', text: 'Einladungstext kopieren',
+          onclick: () => { ta.select(); navigator.clipboard?.writeText(msg); toast('Einladungstext kopiert.'); },
+        }),
+      ]),
+      el('p', { class: 'hint mt', text: 'Der Text enthält den Link schon — einfach in WhatsApp einfügen. Das Passwort danach separat schicken.' }),
       c.passwordHint ? el('p', { class: 'hint mt', text: 'Passwort-Hinweis: ' + c.passwordHint }) : null,
     ]));
   }
