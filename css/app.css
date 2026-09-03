@@ -202,7 +202,9 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green-2); b
 body.stage-mode { overflow: hidden; }
 body.stage-mode #topbar { display: none; }
 body.stage-mode #app { max-width: none; margin: 0; padding: 0; }
-.stage-screen { position: fixed; inset: 0; z-index: 1; }
+/* overflow:hidden, weil die Bühne beim Kamera-Anflug über ihre Kanten
+   hinauswächst — ohne das könnten Scrollbalken/Ränder aufblitzen. */
+.stage-screen { position: fixed; inset: 0; z-index: 1; overflow: hidden; }
 body.stage-mode .stage-wrap { width: 100%; height: 100%; }
 body.stage-mode .calendar-stage {
   width: 100%; height: 100%;
@@ -385,8 +387,38 @@ body.door-open .flake,
 body.door-open .flake::before { animation-play-state: paused; }
 
 /* ======================================================================
-   ÖFFNUNGS-ANIMATION (Zoom → öffnen → Schimmer → Inhalt)
+   ÖFFNUNGS-ANIMATION (Anflug → Zoom → öffnen → Schimmer → Inhalt)
    ====================================================================== */
+
+/* ---- Phase 0: Kamera-Anflug auf die angetippte Tür ----
+   Die Bühne selbst wird gezoomt/verschoben (transform kommt aus js/fly.js).
+   Die Dauer MUSS zu AKFly.DURATION_MS in js/fly.js passen — test_router.js
+   vergleicht beide Werte, sonst wäre der Anflug abgeschnitten oder das
+   Türchen würde vor dem Ende der Bewegung aufgehen. */
+.calendar-stage { transition: transform .9s cubic-bezier(.42,.02,.34,1); }
+body.door-flying .calendar-stage { will-change: transform; }
+
+/* Tunnel-Rand während des Anflugs: der Blick wird auf die Mitte gezogen (dort
+   landet die Tür). Nebeneffekt und eigentlicher Anlass: Hintergrund.png ist
+   1536×1024 und wird beim Heranzoomen weich — der abgedunkelte Rand nimmt das
+   aus dem Blick. Die Türen selbst sind CSS-Gradienten und bleiben scharf.
+   Sitzt auf .stage-screen (unskaliert), NICHT auf der Bühne: dort würde der
+   Gradient mitgezoomt und der Rand aus dem Bild wandern.
+   --fly-dim = Stärke (0 = aus), umschaltbar in anflug-vorschau.html. */
+.stage-screen::after {
+  content: ""; position: absolute; inset: 0; z-index: 6;
+  pointer-events: none; opacity: 0;
+  transition: opacity .9s ease;
+  background: radial-gradient(circle at 50% 50%,
+    rgba(2,8,18,0) 18%,
+    rgba(2,8,18,calc(var(--fly-dim, .85) * .5)) 55%,
+    rgba(2,8,18,var(--fly-dim, .85)) 100%);
+}
+body.door-flying .stage-screen::after { opacity: 1; }
+/* Während Anflug/offenem Türchen darf keine zweite Tür angetippt werden. */
+body.door-flying .calendar-stage,
+body.door-open .calendar-stage { pointer-events: none; }
+
 .door-overlay {
   position: fixed; inset: 0; z-index: 80;
   background: rgba(4,10,20,0);
@@ -487,6 +519,9 @@ body.door-open .flake::before { animation-play-state: paused; }
 
 @media (prefers-reduced-motion: reduce) {
   .snow-layer { display: none; }
+  /* Kein Kamera-Anflug (openDay überspringt ihn zusätzlich in JS). */
+  .calendar-stage { transition: none !important; }
+  .stage-screen::after { display: none; }
   .stage-door, .stage-door .door-leaf, .door-content { transition: none !important; animation: none !important; }
   .stage-door.open .door-leaf { transform: rotateY(-112deg); }
 }
