@@ -1044,9 +1044,11 @@
     }
   }
 
-  /** Türchen öffnen: Zoom auf die Tür → Türblatt schwingt nach innen auf →
-   *  goldener Schimmer → entschlüsselter Inhalt wird sichtbar. */
+  /** Türchen öffnen: Kamera-Anflug auf die Tür (die Bühne zoomt heran) → Zoom
+   *  der Tür in die Zielbox → Türblatt schwingt nach innen auf → goldener
+   *  Schimmer → entschlüsselter Inhalt wird sichtbar. */
   async function openDay(day, data, srcEl) {
+    if (document.body.classList.contains('door-open')) return;   // Anflug/Türchen läuft schon
     markOpened(day);
     document.body.classList.add('door-open');    // Schneefall ausblenden + pausieren
     const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -1063,37 +1065,24 @@
     interior.appendChild(contentBox);
     overlay.appendChild(closeBtn);
     overlay.appendChild(sd);
-    document.body.appendChild(overlay);
+    // Das Overlay wird erst NACH dem Kamera-Anflug eingehängt (weiter unten) —
+    // während des Anflugs soll man die Bühne sehen, nicht die Ziel-Tür.
 
     /** Zielbox (zentriert) berechnen und setzen. Wird beim Drehen des Geräts
      *  erneut aufgerufen: Hochkant-Fotos/Videos schaut man im Hochformat an,
      *  sonst behielte die Tür die Pixelmaße des Querformats. */
     const sizeDoor = () => {
-      const vw = window.innerWidth, vh = window.innerHeight;
-      const w = Math.min(420, vw * 0.9, (vh * 0.82) * 3 / 4);
-      const h = w * 4 / 3;
-      const left = (vw - w) / 2, top = (vh - h) / 2;
-      sd.style.width = w + 'px';
-      sd.style.height = h + 'px';
-      sd.style.left = left + 'px';
-      sd.style.top = top + 'px';
-      return { w: w, left: left, top: top };
+      const b = AKFly.targetBox(window.innerWidth, window.innerHeight);
+      sd.style.width = b.w + 'px';
+      sd.style.height = b.h + 'px';
+      sd.style.left = b.left + 'px';
+      sd.style.top = b.top + 'px';
+      return b;
     };
-    const box = sizeDoor();
+    let box = sizeDoor();
 
-    // Beim Drehen neu vermessen (und einen etwaigen FLIP-Transform verwerfen,
-    // der sich auf die alten Maße bezog).
-    const onViewportChange = () => { sizeDoor(); sd.style.transform = ''; };
-    window.addEventListener('resize', onViewportChange);
-    window.addEventListener('orientationchange', onViewportChange);
-    tryUnlockOrientation();   // Android: Drehen erlauben, solange das Türchen offen ist
-
-    // FLIP: Startzustand = exakt über der angetippten Kachel
-    const r = srcEl ? srcEl.getBoundingClientRect() : { left: box.left, top: box.top, width: box.w };
-    const scale = r.width / box.w;
-    if (!reduce) sd.style.transform = `translate(${r.left - box.left}px, ${r.top - box.top}px) scale(${scale})`;
-
-    // Inhalt parallel entschlüsseln
+    // Inhalt sofort entschlüsseln — läuft parallel zum Anflug, kostet also
+    // keine zusätzliche Wartezeit (das Overlay hängt dabei noch nicht im DOM).
     const contentReady = renderDayContent(day, data, contentBox)
       .catch(e => {
         console.error('Türchen-Inhalt fehlgeschlagen:', e);
@@ -1106,6 +1095,33 @@
         contentBox.appendChild(el('div', { class: 'spin', text: msg }));
       });
 
+    // ---- Phase 0: Kamera-Anflug ------------------------------------------
+    // Die ganze Bühne (Hintergrund + Nachbartüren) zoomt auf die angetippte
+    // Tür zu — man „fliegt" auf sie zu, erst danach öffnet sie sich.
+    const stage = srcEl ? srcEl.closest('.calendar-stage') : null;
+    const flight = (!reduce && stage) ? AKFly.flyTo(stage, srcEl, box.w) : null;
+    if (flight) await flight.done;
+
+    document.body.appendChild(overlay);
+    box = sizeDoor();      // das Gerät kann sich während des Anflugs gedreht haben
+
+    // Beim Drehen neu vermessen (und einen etwaigen FLIP-Transform verwerfen,
+    // der sich auf die alten Maße bezog); der Anflug wird ebenfalls neu
+    // gerechnet, sonst sitzt die Bühne nach dem Drehen auf alten Pixelmaßen.
+    const onViewportChange = () => {
+      box = sizeDoor();
+      sd.style.transform = '';
+      if (flight) flight.reapply();
+    };
+    window.addEventListener('resize', onViewportChange);
+    window.addEventListener('orientationchange', onViewportChange);
+    tryUnlockOrientation();   // Android: Drehen erlauben, solange das Türchen offen ist
+
+    // FLIP: Startzustand = exakt über der (jetzt herangezoomten) Kachel
+    const r = srcEl ? srcEl.getBoundingClientRect() : { left: box.left, top: box.top, width: box.w };
+    const scale = r.width / box.w;
+    if (!reduce) sd.style.transform = `translate(${r.left - box.left}px, ${r.top - box.top}px) scale(${scale})`;
+
     // Aufräumen / Schließen
     const cleanup = () => {
       overlay.classList.remove('dim');
@@ -1113,6 +1129,7 @@
       document.removeEventListener('keydown', onKey);
       window.removeEventListener('resize', onViewportChange);
       window.removeEventListener('orientationchange', onViewportChange);
+      if (flight) AKFly.reset(stage);                 // Bühne fliegt zurück
       tryLockLandscape();                            // Bühne will wieder Querformat
       setTimeout(() => overlay.remove(), 420);
     };
