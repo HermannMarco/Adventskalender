@@ -1,4 +1,4 @@
-const CACHE = 'adventskalender-v15';
+const CACHE = 'adventskalender-v16';
 const ASSETS = [
   './',
   './index.html',
@@ -7,6 +7,7 @@ const ASSETS = [
   './js/firebase-config.js',
   './js/crypto.js',
   './js/snow.js',
+  './js/fly.js',
   './js/app.js',
   './Hintergrund.png',
   './icons/icon.svg',
