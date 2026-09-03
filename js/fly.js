@@ -20,18 +20,27 @@ window.AKFly = (function () {
   'use strict';
 
   /** Dauer des Anflugs. MUSS zur transition-Dauer von .calendar-stage in
-   *  css/app.css passen — test_router.js vergleicht beide Werte. */
-  const DURATION_MS = 900;
+   *  css/app.css passen — test_router.js vergleicht beide Werte.
+   *  Vom User in anflug-vorschau.html gewählt (03.09.2026): 1300 ms. */
+  const DURATION_MS = 1300;
 
   /** Wie groß die Tür am Ende des Anflugs sein soll — als Anteil der Zielbox,
-   *  in die sie danach per FLIP weiterwächst. 0.62 = der Anflug bringt einen
-   *  fast heran, die letzte Strecke läuft mit abdunkelndem Hintergrund.
-   *  Bewusst < 1: bei 1.0 müsste das Hintergrundbild bis ~6× hochskaliert
-   *  werden und wird sichtbar unscharf. */
-  const AIM = 0.62;
+   *  in die sie danach per FLIP weiterwächst. Vom User gewählt (03.09.2026):
+   *  0.85 = „stark", man ist am Ende fast heran, die letzte Strecke läuft mit
+   *  abdunkelndem Hintergrund. Bewusst < 1: bei 1.0 müsste das Hintergrundbild
+   *  noch weiter hochskaliert werden und wird sichtbar unscharf.
+   *  Praktisch bremst auf dem Handy ohnehin MAX_SCALE (siehe unten). */
+  const AIM = 0.85;
 
   const MIN_SCALE = 2.0;    // darunter merkt man den Anflug kaum
-  const MAX_SCALE = 4.6;    // darüber wird das Hintergrundbild matschig
+  /** Obergrenze. 03.09.2026 von 4.6 auf 5.5 erhöht, weil AIM = 0.85 („stark")
+   *  auf dem iPhone sonst an der Grenze hängen bleibt und dort schwächer wirkt
+   *  als auf dem PC, an dem der User den Wert ausgesucht hat. Zwei Dinge
+   *  begrenzen nach oben: das Hintergrundbild (1536×1024) wird beim Zoomen
+   *  weich, und die Bühne muss als Textur in den Grafikspeicher passen —
+   *  iPhone quer landet bei 5.23× ≈ 9 Megapixel, das ist unkritisch.
+   *  test_router.js hält beide Schranken fest. */
+  const MAX_SCALE = 5.5;
 
   /** Stärke des abdunkelnden Tunnel-Rands während des Anflugs. Gestaltet wird
    *  er in css/app.css (--fly-dim); der Wert steht hier nur, damit die
