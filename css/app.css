@@ -395,7 +395,7 @@ body.door-open .flake::before { animation-play-state: paused; }
    Die Dauer MUSS zu AKFly.DURATION_MS in js/fly.js passen — test_router.js
    vergleicht beide Werte, sonst wäre der Anflug abgeschnitten oder das
    Türchen würde vor dem Ende der Bewegung aufgehen. */
-.calendar-stage { transition: transform .9s cubic-bezier(.42,.02,.34,1); }
+.calendar-stage { transition: transform 1.3s cubic-bezier(.42,.02,.34,1); }
 body.door-flying .calendar-stage { will-change: transform; }
 
 /* Tunnel-Rand während des Anflugs: der Blick wird auf die Mitte gezogen (dort
