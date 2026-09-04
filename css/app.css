@@ -170,8 +170,48 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green-2); b
   border: 1px solid #e2e6e3; border-radius: 12px; padding: 12px 14px;
   margin: 12px 0; background: #fafbfa;
 }
-.item-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
-.item-title { font-weight: 700; color: var(--green); font-size: .95rem; }
+.item-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.item-title { font-weight: 700; color: var(--green); font-size: .95rem; margin-right: auto; }
+
+/* --- Reihenfolge ändern: Greifpunkt zum Ziehen + Pfeile für einen Schritt ---
+   touch-action:none am Greifpunkt ist Pflicht: sonst scrollt das Handy den
+   Dialog, statt die Karte mitzunehmen. */
+.item-drag {
+  cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none;
+  -webkit-touch-callout: none; color: var(--muted); font-size: 1.15rem; line-height: 1;
+  padding: 6px 8px; margin: -6px 0 -6px -4px; border-radius: 8px; letter-spacing: -1px;
+}
+.item-drag:hover { color: var(--green); background: rgba(15,81,54,.08); }
+.item-moves { display: flex; gap: 4px; }
+.item-move {
+  border: 1px solid #d8ded9; background: #fff; color: var(--green);
+  border-radius: 8px; font-size: .8rem; line-height: 1; padding: 6px 8px; min-width: 30px;
+}
+.item-move:hover:not(:disabled) { background: rgba(15,81,54,.10); }
+.item-move:disabled { opacity: .35; }
+
+/* Karten gleiten beim Umsortieren; die gezogene folgt dem Finger ohne Verzögerung.
+   Wichtig: keine Regel mit MEHR Klassen darf .item-card eine transition geben —
+   sonst überstimmt sie das transition:none unten und die gezogene Karte
+   schleppt hinter dem Finger her (test_router.js rechnet die Spezifität nach). */
+.item-card { transition: transform .16s ease, box-shadow .16s ease, background .3s ease; }
+.item-card.dragging {
+  transition: none; position: relative; z-index: 3;
+  box-shadow: 0 10px 24px rgba(0,0,0,.22); border-color: var(--green-2); background: #fff;
+}
+.item-card.dragging .item-drag { cursor: grabbing; }
+.item-list.reordering { user-select: none; }
+/* Aufleuchten nach einem Sprung per ▲▼ — sonst sieht man kaum, was wanderte. */
+.item-card.moved { animation: item-moved .8s ease; }
+@keyframes item-moved {
+  0%, 100% { background: #fafbfa; }
+  22%      { background: rgba(198,164,90,.30); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .item-card { transition: none; }
+  .item-card.moved { animation: none; }
+}
+
 .item-remove {
   border: 0; background: transparent; color: var(--muted);
   font-size: 1.5rem; line-height: 1; padding: 0 6px; border-radius: 8px;
