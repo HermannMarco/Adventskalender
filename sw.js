@@ -1,4 +1,4 @@
-const CACHE = 'adventskalender-v17';
+const CACHE = 'adventskalender-v18';
 const ASSETS = [
   './',
   './index.html',
@@ -8,6 +8,7 @@ const ASSETS = [
   './js/crypto.js',
   './js/snow.js',
   './js/fly.js',
+  './js/reorder.js',
   './js/app.js',
   './Hintergrund.png',
   './icons/icon.svg',
