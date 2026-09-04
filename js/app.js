@@ -563,18 +563,54 @@
     // alte Storage-Pfade merken → verwaiste Dateien beim Speichern löschen
     const oldPaths = existingItems.map(it => it.storagePath).filter(Boolean);
 
-    function renumber() { cards.forEach((c, i) => c.setIndex(i + 1)); }
+    function renumber() { cards.forEach((c, i) => c.setIndex(i + 1, cards.length)); }
+
+    /** Inhalt an eine andere Position schieben. Eine Stelle für beide Wege:
+     *  Ziehen am Greifpunkt (AKReorder) und die ▲▼-Knöpfe. Die Nummerierung
+     *  und die Speicher-Reihenfolge folgen immer `cards`. */
+    function moveCard(from, to) {
+      const n = cards.length;
+      if (!(from >= 0 && from < n)) return;
+      const target = Math.max(0, Math.min(n - 1, to));   // ▲ auf Platz 1 / ▼ am Ende: nichts tun
+      if (target === from) return;
+
+      const focused = document.activeElement;
+      AKReorder.move(cards, from, target);
+      cards.forEach(c => list.appendChild(c.root));       // DOM in Array-Reihenfolge ziehen
+      renumber();
+      // Ein Knoten verliert beim Umhängen den Fokus — ohne das Zurückholen wäre
+      // die Karte per Tastatur nur einen Schritt weit zu bewegen.
+      if (focused && list.contains(focused) && typeof focused.focus === 'function') focused.focus();
+      // kurzes Aufleuchten: bei den ▲▼-Knöpfen sieht man sonst kaum, was wanderte
+      const moved = cards[target].root;
+      moved.classList.remove('moved');
+      void moved.offsetWidth;                            // Animation neu starten
+      moved.classList.add('moved');
+      setTimeout(() => moved.classList.remove('moved'), 800);
+    }
+
     function addCard(item) {
       const card = makeItemCard(item || null, () => {
         const i = cards.indexOf(card);
         if (i >= 0) cards.splice(i, 1);
         card.root.remove();
         renumber();
+      }, {
+        onUp: () => moveCard(cards.indexOf(card), cards.indexOf(card) - 1),
+        onDown: () => moveCard(cards.indexOf(card), cards.indexOf(card) + 1),
       });
       cards.push(card);
       list.appendChild(card.root);
       renumber();
     }
+
+    // Ziehen am Greifpunkt ⠿ (Maus + Finger). Der Listener hängt am Container,
+    // gilt also auch für später hinzugefügte Karten, und geht mit dem Dialog.
+    AKReorder.attach(list, {
+      itemSelector: '.item-card',
+      handleSelector: '.item-drag',
+      onMove: moveCard,
+    });
 
     // vorhandene Inhalte als Karten anlegen — sonst eine leere Startkarte
     if (existingItems.length) existingItems.forEach(addCard);
@@ -622,10 +658,11 @@
 
     openModal(el('div', {}, [
       el('h2', { text: `Türchen ${day} befüllen` }),
-      el('p', { class: 'sub', text: 'Mehrere Inhalte möglich — Bilder, Videos, Sprüche, Dateien oder Gutscheine. Sie werden in dieser Reihenfolge angezeigt.' }),
+      el('p', { class: 'sub', text: 'Mehrere Inhalte möglich — Bilder, Videos, Sprüche, Dateien oder Gutscheine. Sie werden in dieser Reihenfolge angezeigt und lassen sich jederzeit verschieben.' }),
       list,
       el('div', { class: 'row' }, [addBtn]),
       el('p', { class: 'hint', text: 'Tipp: Für ein zweites Bild/Video/… oben auf „Weiteren Inhalt hinzufügen" klicken.' }),
+      el('p', { class: 'hint', text: 'Reihenfolge ändern: eine Karte am ⠿ greifen und an die gewünschte Stelle ziehen — oder mit ▲ / ▼ einen Platz weiter schieben.' }),
       el('div', { class: 'row mt' }, [saveBtn, delBtn]),
       err,
     ]));
@@ -633,11 +670,22 @@
 
   /** Baut eine Editor-Karte für genau einen Türchen-Inhalt.
    *  `existing` = normalisiertes Item oder null. `onRemove` entfernt die Karte.
-   *  Rückgabe: { root, setIndex(n), collect(day) -> item }. */
-  function makeItemCard(existing, onRemove) {
+   *  `moves` = { onUp, onDown } zum Verschieben (siehe moveCard in openDoorEditor).
+   *  Rückgabe: { root, setIndex(n, total), collect(day) -> item }. */
+  function makeItemCard(existing, onRemove, moves) {
     let curType = existing?.type || 'text';
+    const mv = moves || {};
 
     const title = el('span', { class: 'item-title' });
+    // Greifpunkt fürs Ziehen (Maus + Finger) — die Mechanik steckt in js/reorder.js
+    const handle = el('span', {
+      class: 'item-drag', 'aria-hidden': 'true',
+      title: 'Ziehen, um diesen Inhalt an eine andere Stelle zu verschieben', text: '⠿',
+    });
+    // Tastatur-/Touch-Weg für je einen Schritt (und Notausgang, falls Ziehen hakt)
+    const upBtn = el('button', { class: 'item-move', type: 'button', text: '▲', onclick: () => mv.onUp && mv.onUp() });
+    const downBtn = el('button', { class: 'item-move', type: 'button', text: '▼', onclick: () => mv.onDown && mv.onDown() });
+    const moveWrap = el('div', { class: 'item-moves' }, [upBtn, downBtn]);
     const removeBtn = el('button', { class: 'item-remove', 'aria-label': 'Inhalt entfernen', text: '×', onclick: onRemove });
     const pills = el('div', { class: 'type-pills' });
     const fields = el('div', {});
@@ -691,7 +739,7 @@
     renderFields();
 
     const root = el('div', { class: 'item-card' }, [
-      el('div', { class: 'item-head' }, [title, removeBtn]),
+      el('div', { class: 'item-head' }, [handle, title, moveWrap, removeBtn]),
       pills, fields,
       el('label', { class: 'field' }, [el('span', { text: 'Begleittext (optional)' }), caption]),
     ]);
@@ -727,7 +775,19 @@
 
     return {
       root,
-      setIndex(n) { title.textContent = 'Inhalt ' + n; },
+      /** Nummer + Zustand der Verschiebe-Bedienelemente setzen.
+       *  Bei einem einzigen Inhalt sind Greifpunkt und Pfeile ausgeblendet —
+       *  es gibt nichts zu ordnen. */
+      setIndex(n, total) {
+        const max = total || 1;
+        title.textContent = 'Inhalt ' + n;
+        handle.classList.toggle('hidden', max < 2);
+        moveWrap.classList.toggle('hidden', max < 2);
+        upBtn.disabled = n <= 1;
+        downBtn.disabled = n >= max;
+        upBtn.setAttribute('aria-label', `Inhalt ${n} nach oben verschieben`);
+        downBtn.setAttribute('aria-label', `Inhalt ${n} nach unten verschieben`);
+      },
       collect,
     };
   }
